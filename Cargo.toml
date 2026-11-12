@@ -23,6 +23,8 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 capi = []
 # C++ HTTPS transport (native/): compiled by build.rs and exposed through the `net` module. Needs OpenSSL 3 at build time.
 net = ["dep:openssl-sys"]
+# Build OpenSSL 3 from source (openssl-src) instead of linking a system or vcpkg install. Needs Perl and a C compiler.
+vendored = ["openssl-sys/vendored", "openssl?/vendored"]
 # Which backends get COMPILED. build.rs (crypto_backends=...) picks which one is ACTIVE.
 # Default when the consumer asks for nothing: aws-lc-rs.
 default = ["backend-awslc"]
