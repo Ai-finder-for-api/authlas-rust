@@ -36,10 +36,11 @@ jobs:
         uses: lukka/run-vcpkg@v11
         env:
           VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
+          VCPKG_DEFAULT_TRIPLET: x64-windows
         with:
-          vcpkgGitCommitId: "319504a5326aa870edde46438c5455fa76305a56"
           vcpkgDirectory: ${{ github.workspace }}/vcpkg
           vcpkgJsonGlob: vcpkg.json
+          runVcpkgInstall: true
 
       - name: Set OpenSSL location (Windows)
         if: runner.os == 'Windows'
