@@ -1,0 +1,83 @@
+[package]
+name = "authlas"
+description = "OAuth 2.0 and JOSE in one crate: Rust core, stable C ABI, and the C++ HTTPS transport"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["Yash"]
+license = "MIT"
+repository = "https://github.com/Ai-finder-for-api/authlas-rust"
+homepage = "https://github.com/Ai-finder-for-api/authlas-rust"
+readme = "README.md"
+keywords = ["oauth2", "jose", "jwt", "openid-connect", "sd-jwt"]
+categories = ["authentication", "cryptography", "web-programming"]
+build = "build.rs"
+exclude = [".scratch/", "target/", "*.obj", "*.pdb", "*.ilk", ".github/"]
+
+[lib]
+# rlib for Rust users; cdylib/staticlib carry the C ABI for other languages.
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[features]
+# C ABI for bindings (Python, TypeScript, C#, C++). Off by default.
+capi = []
+# C++ HTTPS transport (native/): compiled by build.rs and exposed through the `net` module. Needs OpenSSL 3 at build time.
+net = ["dep:openssl-sys"]
+# Which backends get COMPILED. build.rs (crypto_backends=...) picks which one is ACTIVE.
+# Default when the consumer asks for nothing: aws-lc-rs.
+default = ["backend-awslc"]
+backend-awslc = ["dep:aws-lc-rs"]
+backend-openssl = ["dep:openssl"]
+backend-rustcrypto = ["dep:sha2", "dep:hmac", "dep:p256", "dep:p384", "dep:p521", "dep:ed25519-dalek", "dep:rsa", "dep:rand_core", "dep:getrandom", "dep:aes", "dep:aes-gcm", "dep:cbc", "dep:sha1", "dep:x25519-dalek"]
+# qs_crypt (quantum-suite) loaded at run time from a DLL/.so, optionally pinned by SHA-256.
+backend-qscrypt = ["dep:libloading"]
+# Authlas' own composition backend: runs every operation through two or more independent
+# implementations and fails closed on any disagreement. Needs at least two of the others.
+backend-hardened = []
+# Opt-in protocol profiles. None of these is on by default.
+# FAPI 2.0 Security Profile: PAR + PKCE S256 + sender-constrained tokens + PS256/ES256/EdDSA only.
+fapi2 = []
+# OpenID Connect Core 1.0 (code flow): ID tokens, UserInfo, discovery, prompt/max_age/claims, pairwise subjects.
+oidc = []
+# MCP authorization (spec 2025-11-25): resource metadata discovery, WWW-Authenticate parsing, audience-bound token checks,
+# step-up, Client ID Metadata Documents.
+mcp = []
+# Verifiable credentials: SD-JWT VC (type metadata, issuer metadata, claim-metadata validation) and Token Status List.
+# Needs a DEFLATE implementation for status lists, hence the one extra dependency.
+vc = ["dep:miniz_oxide"]
+# Everything opt-in (used by the test matrix).
+full = ["fapi2", "oidc", "mcp", "vc"]
+# Accept `alg: none` and other relaxed behaviour. Never enable in production.
+test-mode = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+zeroize = "1"
+url = "2"
+
+sha2 = { version = "0.10", features = ["oid"], optional = true }
+sha1 = { version = "0.10", optional = true }
+hmac = { version = "0.12", optional = true }
+p256 = { version = "0.13", features = ["ecdsa", "ecdh"], optional = true }
+p384 = { version = "0.13", features = ["ecdsa", "ecdh"], optional = true }
+p521 = { version = "0.13", features = ["ecdsa", "ecdh"], optional = true }
+ed25519-dalek = { version = "2", optional = true }
+x25519-dalek = { version = "2", features = ["static_secrets"], optional = true }
+rsa = { version = "0.9", optional = true }
+aes = { version = "0.8", optional = true }
+aes-gcm = { version = "0.10", optional = true }
+cbc = { version = "0.1", features = ["alloc"], optional = true }
+rand_core = { version = "0.6", features = ["getrandom"], optional = true }
+getrandom = { version = "0.2", optional = true }
+openssl = { version = "0.10", optional = true }
+aws-lc-rs = { version = "1", optional = true }
+libloading = { version = "0.8", optional = true }
+miniz_oxide = { version = "0.9", optional = true }
+
+# C++ transport (feature `net`). cc compiles native/; openssl-sys links OpenSSL 3.
+[build-dependencies]
+# Build-time only; never linked into consumers. Used by build.rs when the `net` feature is on.
+cc = "1"
+openssl-sys = { version = "0.9", optional = true }
