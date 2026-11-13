@@ -129,6 +129,7 @@ fn build_net() {
         println!("cargo:rustc-link-search=native={}", PathBuf::from(dir).join("lib").display());
     }
     println!("cargo:rustc-link-lib=static=authlas_net");
+    export_net_symbols();
     // vcpkg's Windows OpenSSL ships libssl.lib / libcrypto.lib; other platforms use ssl / crypto.
     let windows = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
     let (ssl, crypto) = if windows { ("libssl", "libcrypto") } else { ("ssl", "crypto") };
@@ -138,4 +139,31 @@ fn build_net() {
         println!("cargo:rustc-link-lib=ws2_32");
         println!("cargo:rustc-link-lib=crypt32");
     }
+}
+
+/// Export the transport's public C functions from the cdylib. The list comes from `native/include/authlas_net.h`
+/// (every `authlas_net_*` name followed by `(` on an `AUTHLAS_NET_API` line), so it cannot drift from the header.
+fn export_net_symbols() {
+    let header = fs::read_to_string("native/include/authlas_net.h").unwrap_or_default();
+    let mut names: Vec<String> = Vec::new();
+    for line in header.lines().filter(|l| l.contains("AUTHLAS_NET_API")) {
+        if let Some(pos) = line.find("authlas_net_") {
+            let tail = &line[pos..];
+            let name: String = tail.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
+            if !name.is_empty() && !names.contains(&name) { names.push(name); }
+        }
+    }
+    if names.is_empty() { return; }
+    let windows = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
+    let apple = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos");
+    for n in &names {
+        if windows {
+            println!("cargo:rustc-cdylib-link-arg=/EXPORT:{n}");
+        } else if apple {
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-exported_symbol,_{n}");
+        } else {
+            println!("cargo:rustc-cdylib-link-arg=-Wl,--undefined={n}");
+        }
+    }
+    println!("cargo:rerun-if-changed=native/include/authlas_net.h");
 }
