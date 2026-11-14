@@ -11,6 +11,93 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define GCM_IV_LEN 12
+
+#define GCM_TAG_LEN 16
+
+// Minimum number of independent implementations that must take part in an operation.
+#define QUORUM 2
+
+#define Validation_MAX_LEEWAY 300
+
+#define MAX_ASSERTION_LEN (16 * 1024)
+
+#define USER_CODE_LEN 8
+
+#define DEFAULT_INTERVAL 5
+
+#define LIFETIME 600
+
+// Proofs older than this are refused, whatever the server clock leeway.
+#define MAX_PROOF_AGE 300
+
+// 5.3.2.1: authorization codes live at most 60 seconds.
+#define MAX_CODE_LIFETIME 60
+
+// 5.3.2.2: pushed request `expires_in` is below 600 seconds.
+#define MAX_PAR_LIFETIME 599
+
+// 5.3.2.1 note 3: accept `iat`/`nbf` up to 10 s in the future (a requirement), never more than 60 s (a ceiling).
+#define MIN_FUTURE_SKEW 10
+
+#define MAX_FUTURE_SKEW 60
+
+// 5.3.2.2: nonce values up to 64 characters must be supported; longer ones may be refused.
+#define MAX_NONCE_LEN 64
+
+#define MAX_BODY (64 * 1024)
+
+#define MAX_PARAMS 128
+
+// RFC 9126 7.1: lifetimes should be short because the client uses the reference immediately.
+#define PAR_LIFETIME 60
+
+#define MAX_LEN 2048
+
+#define Scope_MAX_TOKENS 64
+
+// Lifetime of an authorization code. RFC 6749 4.1.2: "A maximum authorization code lifetime of 10 minutes is RECOMMENDED."
+#define CODE_LIFETIME 60
+
+#define REFRESH_LIFETIME ((30 * 24) * 3600)
+
+#define REFRESH_FAMILY_LIFETIME ((180 * 24) * 3600)
+
+#define MAX_CERT_LEN (16 * 1024)
+
+#define CACHE_MIN 60
+
+#define CACHE_MAX 86400
+
+#define CACHE_DEFAULT 300
+
+// Recommended maximum size of the document (draft section 6.6).
+#define CIMD_MAX_BYTES (5 * 1024)
+
+// Longest `sub` the spec allows (Core 2).
+#define MAX_SUB 255
+
+// Longest ID token lifetime the issuer will sign. ID tokens prove an authentication event; they are not sessions.
+#define MAX_LIFETIME 3600
+
+// Longest `extends` chain followed.
+#define MAX_CHAIN 8
+
+// Largest Type Metadata document accepted.
+#define MAX_DOC_BYTES (256 * 1024)
+
+#define VALID 0
+
+#define INVALID 1
+
+#define SUSPENDED 2
+
+// Largest uncompressed list accepted by default: 16 MiB, which is 134 million entries at 1 bit.
+#define DEFAULT_MAX_BYTES ((16 * 1024) * 1024)
+
+// Largest base64url `lst` accepted (before decompression).
+#define MAX_ENCODED ((4 * 1024) * 1024)
+
 // ABI version. Bumped only on breaking changes to existing functions.
 #define AUTHLAS_ABI_VERSION 1
 
@@ -205,6 +292,50 @@ int authlas_sdjwt_verify(const char *sd_jwt,
                          const char *issuer_key,
                          const char *options_json,
                          AuthlasBuf *out);
+
+// Header of a compact JWS, without verifying anything. Output: the raw header object.
+int authlas_jws_peek_header(const char *token, AuthlasBuf *out);
+
+// Header of a compact JWE, without decrypting. Output: the raw header object.
+int authlas_jwe_peek_header(const char *token, AuthlasBuf *out);
+
+// Claims of a compact JWS, without verifying. For routing and logs only, never for decisions.
+int authlas_jwt_peek_claims(const char *token, AuthlasBuf *out);
+
+// Sign, then encrypt. Options: `{"alg": "...", "enc": "...", "key": <recipient JWK>}`, wrapping a compact JWS.
+int authlas_jwt_encrypt_nested(const char *inner_jws,
+                               const char *options_json,
+                               AuthlasBuf *out);
+
+// Splits `JWT~D1~...~[KB]` into its parts. Output: `{"jwt", "disclosures": [...], "kb_jwt"}`.
+int authlas_sdjwt_split(const char *sd_jwt, AuthlasBuf *out);
+
+// Reads one disclosure. Output: `{"name": "..." or null, "value": ...}`.
+int authlas_sdjwt_describe(const char *disclosure, AuthlasBuf *out);
+
+// Digest of one disclosure (base64url). `hash`: "sha-256", "sha-384" or "sha-512".
+int authlas_sdjwt_disclosure_digest(const char *disclosure, const char *hash, AuthlasBuf *out);
+
+// Name of a status value (0 = VALID, 1 = INVALID, 2 = SUSPENDED, and so on).
+int authlas_status_name(uint8_t value, AuthlasBuf *out);
+
+// Verifies a Status List Token and returns the list plus its freshness data.
+// Options: `{"algs": [...], "uri": "...", "now"?, "leeway"?, "max_age"?, "issuer"?, "max_bytes"?, "allow_mac"?}`.
+// Output: `{"uri", "iat", "exp", "ttl", "bits", "entries"}` where `entries` is the status value per index.
+int authlas_status_list_verify(const char *token,
+                               const char *key,
+                               const char *options_json,
+                               AuthlasBuf *out);
+
+// SSRF guard for a URL a client gave you. Output: the parsed URL as text. Refuses anything not public https.
+int authlas_ssrf_check(const char *url,
+                       AuthlasBuf *out);
+
+// Returns 1 when the IP address is public and routable, 0 when it is private, reserved or loopback.
+int authlas_is_public_ip(const char *ip, int *is_public);
+
+// Current Unix time in seconds.
+uint64_t authlas_unix_now(void);
 
 #ifdef __cplusplus
 }  // extern "C"

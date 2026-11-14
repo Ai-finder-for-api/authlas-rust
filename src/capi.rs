@@ -426,6 +426,9 @@ pub unsafe extern "C" fn authlas_scope_check(requested: *const c_char, allowed: 
 // X.509 for mutual TLS
 // ---------------------------------------------------------------------------------------------------------------------
 
+#[path = "capi_ext.rs"]
+mod ext;
+
 fn cert_json(c: &x509::Certificate) -> Result<Vec<u8>, CErr> {
     let sans: Vec<Value> = c.sans.iter().map(|s| match s {
         x509::San::Dns(v) => json!({"type": "dns", "value": v}), x509::San::Uri(v) => json!({"type": "uri", "value": v}),

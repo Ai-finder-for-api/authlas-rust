@@ -20,7 +20,7 @@ if not exist "%VCVARS%" (
 )
 call "%VCVARS%" >nul
 
-set "FEATURES=--no-default-features --features backend-openssl,capi,net"
+set "FEATURES=--no-default-features --features backend-openssl,capi,net,vc"
 cd /d "%~dp0"
 
 cargo build --release %FEATURES%
