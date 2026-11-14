@@ -128,6 +128,20 @@ typedef struct {
   size_t len;
 } AuthlasBuf;
 
+// Storage for pushed authorization requests (RFC 9126). All callbacks receive `user` unchanged.
+//
+// `save(user, json)`: store the record given as a JSON object with `request_uri`, `client_id`, `query`, `expires_at`.
+// Return 0 on success.
+//
+// `take(user, request_uri, out)`: remove the record for `request_uri` and write it as JSON into `out` (use
+// `authlas_buf_write`). Return 0 and an empty buffer when no record exists. The record must be removed in the same
+// step, so a reference works once.
+typedef struct {
+  void *user;
+  int (*save)(void *user, const char *record_json);
+  int (*take)(void *user, const char *request_uri, AuthlasBuf *out);
+} AuthlasPushStore;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -396,6 +410,26 @@ int authlas_rar_is_reduction(const char *requested_json,
 
 // Basic auth header value for a client secret (RFC 6749 section 2.3.1).
 int authlas_basic_header(const char *client_id, const char *secret, AuthlasBuf *out);
+
+// Writes a JSON or text result from a host callback into `out`. The library frees the buffer. Returns 0.
+int authlas_buf_write(AuthlasBuf *out,
+                      const uint8_t *data,
+                      size_t len);
+
+// Pushes a client-authenticated request into the host's store. `form_body` is the raw `application/x-www-form-urlencoded`
+// body. Output: `{"request_uri", "expires_in"}`.
+int authlas_par_push(AuthlasPushStore store,
+                     const char *authenticated_client,
+                     const char *form_body,
+                     uint64_t now,
+                     AuthlasBuf *out);
+
+// Redeems a `request_uri` at the authorization endpoint. Output: the stored query string.
+int authlas_par_redeem(AuthlasPushStore store,
+                       const char *client_id,
+                       const char *request_uri,
+                       uint64_t now,
+                       AuthlasBuf *out);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -17,6 +17,7 @@ pub mod form;
 pub mod introspection;
 pub mod metadata;
 pub mod mtls;
+pub mod par_host;
 pub mod par_jar;
 pub mod pkce;
 pub mod rar_stepup;
