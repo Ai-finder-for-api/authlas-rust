@@ -198,6 +198,26 @@ int main(void) {
         CHECK(authlas_unix_now() > 1700000000ULL, "unix_now is sane");
     }
 
+    /* slice 2: PKCE, scopes, metadata, MCP discovery, WWW-Authenticate, RAR */
+    {
+        AuthlasBuf pk = B(), sc = B(), ch = B(), wa = B(), mu = B(), ru = B(), rar = B(), bh = B();
+        CHECK(authlas_pkce_generate(&pk) == AUTHLAS_STATUS_OK && has(&pk, "\"S256\""), "pkce generate");
+        CHECK(authlas_pkce_s256_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", &ch) == AUTHLAS_STATUS_OK
+              && strncmp((const char *)ch.data, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", 43) == 0, "rfc7636 challenge");
+        CHECK(authlas_pkce_valid_verifier("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk") == 1, "valid verifier");
+        CHECK(authlas_pkce_valid_verifier("short") == 0, "short verifier refused");
+        CHECK(authlas_scope_parse("read write", &sc) == AUTHLAS_STATUS_OK && has(&sc, "\"read\""), "scope parse");
+        CHECK(authlas_scope_parse("", &sc) != AUTHLAS_STATUS_OK, "empty scope refused");
+        CHECK(authlas_mcp_resource_metadata_urls("https://mcp.example/server", &mu) == AUTHLAS_STATUS_OK && mu.len > 0, "mcp metadata urls");
+        CHECK(authlas_mcp_as_discovery_urls("https://as.example", &ru) == AUTHLAS_STATUS_OK && ru.len > 0, "as discovery urls");
+        CHECK(authlas_www_authenticate_parse("Bearer realm=\"x\", resource_metadata=\"https://rs.example/.well-known/oauth-protected-resource\"", &wa) == AUTHLAS_STATUS_OK
+              && has(&wa, "resource_metadata"), "www-authenticate parse");
+        CHECK(authlas_rar_is_reduction("[{\"type\":\"payment\"}]", "[{\"type\":\"payment\"}]", "{\"types\":[\"payment\"]}") == 1, "rar reduction");
+        CHECK(authlas_basic_header("id", "s3cret", &bh) == AUTHLAS_STATUS_OK && has(&bh, "Basic "), "basic header");
+        authlas_buf_free(&pk); authlas_buf_free(&sc); authlas_buf_free(&ch); authlas_buf_free(&wa);
+        authlas_buf_free(&mu); authlas_buf_free(&ru); authlas_buf_free(&rar); authlas_buf_free(&bh);
+    }
+
     /* buffer hygiene */
     AuthlasBuf z = B();
     authlas_buf_free(&z); authlas_buf_free(&z); authlas_buf_free(NULL);

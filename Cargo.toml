@@ -20,7 +20,7 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 
 [features]
 # C ABI for bindings (Python, TypeScript, C#, C++). Off by default.
-capi = []
+capi = ["mcp", "vc", "oidc", "fapi2"]
 # C++ HTTPS transport (native/): compiled by build.rs and exposed through the `net` module. Needs OpenSSL 3 at build time.
 net = ["dep:openssl-sys"]
 # Build OpenSSL 3 from source (openssl-src) instead of linking a system or vcpkg install. Needs Perl and a C compiler.

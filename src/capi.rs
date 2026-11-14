@@ -428,6 +428,8 @@ pub unsafe extern "C" fn authlas_scope_check(requested: *const c_char, allowed: 
 
 #[path = "capi_ext.rs"]
 mod ext;
+#[path = "capi_oauth.rs"]
+mod oauth_ext;
 
 fn cert_json(c: &x509::Certificate) -> Result<Vec<u8>, CErr> {
     let sans: Vec<Value> = c.sans.iter().map(|s| match s {

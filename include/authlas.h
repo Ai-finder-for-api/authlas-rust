@@ -337,6 +337,66 @@ int authlas_is_public_ip(const char *ip, int *is_public);
 // Current Unix time in seconds.
 uint64_t authlas_unix_now(void);
 
+// Random PKCE verifier (RFC 7636). Output: `{"verifier", "challenge", "method": "S256"}`.
+int authlas_pkce_generate(AuthlasBuf *out);
+
+// S256 challenge for a verifier. Output: the challenge as text.
+int authlas_pkce_s256_challenge(const char *verifier, AuthlasBuf *out);
+
+// Checks that a verifier is well formed (RFC 7636 section 4.1).
+int authlas_pkce_valid_verifier(const char *verifier);
+
+// Parses a scope string. Output: the normalized scope tokens as a JSON array.
+int authlas_scope_parse(const char *scope, AuthlasBuf *out);
+
+// Parses an Authorization Server metadata document (RFC 8414) and checks its issuer.
+// Output: the validated metadata as JSON.
+int authlas_as_metadata_normalize(const char *body, const char *expected_issuer, AuthlasBuf *out);
+
+// Builds secure default AS metadata for an issuer. Output: JSON.
+int authlas_as_metadata_defaults(const char *issuer, const char *base, AuthlasBuf *out);
+
+// Parses Protected Resource metadata (RFC 9728). Output: JSON.
+int authlas_resource_metadata_parse(const char *body,
+                                    const char *expected_resource,
+                                    AuthlasBuf *out);
+
+// Well-known URL of AS metadata for an issuer (RFC 8414 section 3). Output: the URL as text.
+int authlas_as_metadata_url(const char *issuer, AuthlasBuf *out);
+
+// Well-known URL of OpenID Connect discovery for an issuer. Output: the URL as text.
+int authlas_oidc_metadata_url(const char *issuer, AuthlasBuf *out);
+
+// Well-known URL of Protected Resource metadata for a resource. Output: the URL as text.
+int authlas_resource_metadata_url(const char *resource, AuthlasBuf *out);
+
+// Canonical form of a resource URI (RFC 8707). Output: the canonical URI as text.
+int authlas_canonical_resource(const char *input, AuthlasBuf *out);
+
+// Candidate resource metadata URLs for an MCP server URL, in the order to try them. Output: a JSON array.
+int authlas_mcp_resource_metadata_urls(const char *mcp_url,
+                                       AuthlasBuf *out);
+
+// Candidate authorization server metadata URLs for an issuer. Output: a JSON array.
+int authlas_mcp_as_discovery_urls(const char *issuer, AuthlasBuf *out);
+
+// Parses a `WWW-Authenticate` header into challenges (RFC 9110 section 11). Output: a JSON array of
+// `{"scheme", "params": {...}}` objects.
+int authlas_www_authenticate_parse(const char *header, AuthlasBuf *out);
+
+// Parses `authorization_details` (RAR, RFC 9396) against the server's allowed types. Output: the details as JSON.
+int authlas_rar_parse(const char *text_json,
+                      const char *allowed_types,
+                      AuthlasBuf *out);
+
+// True when every requested RAR detail is covered by the granted set (a reduction). Returns 1 or 0.
+int authlas_rar_is_reduction(const char *requested_json,
+                             const char *granted_json,
+                             const char *allowed_types);
+
+// Basic auth header value for a client secret (RFC 6749 section 2.3.1).
+int authlas_basic_header(const char *client_id, const char *secret, AuthlasBuf *out);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus

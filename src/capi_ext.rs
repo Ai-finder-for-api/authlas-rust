@@ -73,8 +73,6 @@ pub unsafe extern "C" fn authlas_sdjwt_disclosure_digest(disclosure: *const c_ch
 }
 
 /// Name of a status value (0 = VALID, 1 = INVALID, 2 = SUSPENDED, and so on).
-#[cfg(feature = "vc")]
-#[cfg(feature = "vc")]
 #[no_mangle]
 pub unsafe extern "C" fn authlas_status_name(value: u8, out: *mut AuthlasBuf) -> c_int {
     run(out, || Ok(crate::status_list::status_name(value).as_bytes().to_vec()))
@@ -83,7 +81,6 @@ pub unsafe extern "C" fn authlas_status_name(value: u8, out: *mut AuthlasBuf) ->
 /// Verifies a Status List Token and returns the list plus its freshness data.
 /// Options: `{"algs": [...], "uri": "...", "now"?, "leeway"?, "max_age"?, "issuer"?, "max_bytes"?, "allow_mac"?}`.
 /// Output: `{"uri", "iat", "exp", "ttl", "bits", "entries"}` where `entries` is the status value per index.
-#[cfg(feature = "vc")]
 #[no_mangle]
 pub unsafe extern "C" fn authlas_status_list_verify(token: *const c_char, key: *const c_char, options_json: *const c_char, out: *mut AuthlasBuf) -> c_int {
     run(out, || {
