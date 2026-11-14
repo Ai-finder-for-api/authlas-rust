@@ -154,6 +154,24 @@ typedef struct {
   int (*revoke_access_jti)(void *user, const char *jti);
 } AuthlasRevocationStore;
 
+// Storage for registered clients. Callbacks receive `user` unchanged. Return 0 on success, non-zero on failure.
+//
+// `get(user, client_id, out)`: write the record as JSON into `out`. Write an empty buffer when the client is unknown.
+// `insert(user, record_json)`: store a new record. Fail when the client_id already exists.
+// `replace(user, record_json)`: store an updated record. Fail when the client_id is unknown.
+// `remove(user, client_id)`: delete the record.
+//
+// Record JSON: `{"client_id", "secret_hash", "secret_plain", "registration_token_hash", "issued_at", "metadata"}`.
+// Byte fields are base64url. `secret_hash` and `secret_plain` are null when absent. The record holds secret material,
+// so the host must keep it out of logs.
+typedef struct {
+  void *user;
+  int (*get)(void *user, const char *client_id, AuthlasBuf *out);
+  int (*insert)(void *user, const char *record_json);
+  int (*replace)(void *user, const char *record_json);
+  int (*remove)(void *user, const char *client_id);
+} AuthlasClientStore;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -449,6 +467,31 @@ int authlas_revoke(AuthlasRevocationStore store,
                    const char *authenticated_client,
                    const char *form_body,
                    AuthlasBuf *out);
+
+// Registers a client (RFC 7591). `policy_json` may be NULL for secure defaults. `initial_access_token` may be NULL.
+// `now` may be 0 to use the system clock. Output: the registration response JSON. It holds the client secret and the
+// registration access token when issued, so show them once and never log them.
+int authlas_client_register(AuthlasClientStore store,
+                            const char *endpoint,
+                            const char *policy_json,
+                            const char *body,
+                            const char *initial_access_token,
+                            uint64_t now,
+                            AuthlasBuf *out);
+
+// Reads a registered client (RFC 7592). `bearer` is the registration access token, or NULL. Output: client metadata JSON.
+int authlas_client_read(AuthlasClientStore store,
+                        const char *endpoint,
+                        const char *policy_json,
+                        const char *client_id,
+                        const char *bearer,
+                        AuthlasBuf *out);
+
+// Deletes a registered client (RFC 7592). Output: `"deleted"`.
+int authlas_client_delete(AuthlasClientStore store,
+                          const char *client_id,
+                          const char *bearer,
+                          AuthlasBuf *out);
 
 #ifdef __cplusplus
 }  // extern "C"
