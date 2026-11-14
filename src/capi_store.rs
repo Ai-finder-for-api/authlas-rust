@@ -99,3 +99,72 @@ pub unsafe extern "C" fn authlas_par_redeem(store: AuthlasPushStore, client_id: 
         Ok(q.into_bytes())
     })
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Revocation (RFC 7009) through callbacks
+// ---------------------------------------------------------------------------------------------------------------------
+
+use crate::oauth::revocation::{self, Found, Revoker};
+use crate::oauth::introspection::TokenTypeHint;
+
+/// Storage for revocation (RFC 7009). Callbacks receive `user` unchanged.
+///
+/// `lookup(user, token, hint, out)`: find the token. Write `{"kind":"refresh"|"access"|"none", "client_id", "grant_id",
+/// "jti"}` into `out` with `authlas_buf_write`. `hint` is `"access_token"`, `"refresh_token"` or NULL.
+/// `revoke_grant(user, grant_id)`: revoke every token of a grant. `revoke_access_jti(user, jti)`: revoke one access token.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AuthlasRevocationStore {
+    pub user: *mut std::ffi::c_void,
+    pub lookup: Option<unsafe extern "C" fn(user: *mut std::ffi::c_void, token: *const c_char, hint: *const c_char, out: *mut AuthlasBuf) -> c_int>,
+    pub revoke_grant: Option<unsafe extern "C" fn(user: *mut std::ffi::c_void, grant_id: *const c_char) -> c_int>,
+    pub revoke_access_jti: Option<unsafe extern "C" fn(user: *mut std::ffi::c_void, jti: *const c_char) -> c_int>,
+}
+
+struct CRevoker(AuthlasRevocationStore);
+
+impl Revoker for CRevoker {
+    fn lookup(&self, token: &str, hint: Option<TokenTypeHint>) -> Found {
+        let Some(lookup) = self.0.lookup else { return Found::NotFound };
+        let Ok(tok) = CString::new(token) else { return Found::NotFound };
+        let hint_c = hint.map(|h| CString::new(h.as_str()).ok()).flatten();
+        let hint_ptr = hint_c.as_ref().map_or(std::ptr::null(), |c| c.as_ptr());
+        let mut out = AuthlasBuf { data: std::ptr::null_mut(), len: 0 };
+        let status = unsafe { lookup(self.0.user, tok.as_ptr(), hint_ptr, &mut out) };
+        let bytes = if status == 0 && !out.data.is_null() { unsafe { std::slice::from_raw_parts(out.data, out.len) }.to_vec() } else { Vec::new() };
+        unsafe { authlas_buf_free(&mut out) };
+        let Ok(v) = serde_json::from_slice::<Value>(&bytes) else { return Found::NotFound };
+        let s = |k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+        match v.get("kind").and_then(Value::as_str) {
+            Some("refresh") => Found::Refresh { client_id: s("client_id"), grant_id: s("grant_id") },
+            Some("access") => Found::Access { client_id: s("client_id"), grant_id: s("grant_id"), jti: s("jti") },
+            _ => Found::NotFound,
+        }
+    }
+
+    fn revoke_grant(&self, grant_id: &str) {
+        if let (Some(f), Ok(c)) = (self.0.revoke_grant, CString::new(grant_id)) { unsafe { f(self.0.user, c.as_ptr()) }; }
+    }
+
+    fn revoke_access_jti(&self, jti: &str) {
+        if let (Some(f), Ok(c)) = (self.0.revoke_access_jti, CString::new(jti)) { unsafe { f(self.0.user, c.as_ptr()) }; }
+    }
+}
+
+/// Revokes a token for an already authenticated client (RFC 7009). Always HTTP 200 on the wire, so the result says only
+/// whether something was revoked. Output: `"revoked"`, `"nothing"` or `"not_yours"`. Only `"revoked"` changes state.
+#[no_mangle]
+pub unsafe extern "C" fn authlas_revoke(store: AuthlasRevocationStore, authenticated_client: *const c_char, form_body: *const c_char, out: *mut AuthlasBuf) -> c_int {
+    run(out, || {
+        let params = crate::oauth::form::Params::parse(text(form_body, "form_body")?)?;
+        let req = revocation::parse_request(&params).map_err(CErr::from)?;
+        let r = CRevoker(store);
+        let outcome = revocation::revoke(&r, text(authenticated_client, "authenticated_client")?, &req);
+        let word = match outcome {
+            revocation::Outcome::Revoked => "revoked",
+            revocation::Outcome::NothingToDo => "nothing",
+            revocation::Outcome::NotYours => "not_yours",
+        };
+        Ok(word.as_bytes().to_vec())
+    })
+}

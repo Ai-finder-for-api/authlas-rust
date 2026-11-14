@@ -142,6 +142,18 @@ typedef struct {
   int (*take)(void *user, const char *request_uri, AuthlasBuf *out);
 } AuthlasPushStore;
 
+// Storage for revocation (RFC 7009). Callbacks receive `user` unchanged.
+//
+// `lookup(user, token, hint, out)`: find the token. Write `{"kind":"refresh"|"access"|"none", "client_id", "grant_id",
+// "jti"}` into `out` with `authlas_buf_write`. `hint` is `"access_token"`, `"refresh_token"` or NULL.
+// `revoke_grant(user, grant_id)`: revoke every token of a grant. `revoke_access_jti(user, jti)`: revoke one access token.
+typedef struct {
+  void *user;
+  int (*lookup)(void *user, const char *token, const char *hint, AuthlasBuf *out);
+  int (*revoke_grant)(void *user, const char *grant_id);
+  int (*revoke_access_jti)(void *user, const char *jti);
+} AuthlasRevocationStore;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -430,6 +442,13 @@ int authlas_par_redeem(AuthlasPushStore store,
                        const char *request_uri,
                        uint64_t now,
                        AuthlasBuf *out);
+
+// Revokes a token for an already authenticated client (RFC 7009). Always HTTP 200 on the wire, so the result says only
+// whether something was revoked. Output: `"revoked"`, `"nothing"` or `"not_yours"`. Only `"revoked"` changes state.
+int authlas_revoke(AuthlasRevocationStore store,
+                   const char *authenticated_client,
+                   const char *form_body,
+                   AuthlasBuf *out);
 
 #ifdef __cplusplus
 }  // extern "C"
