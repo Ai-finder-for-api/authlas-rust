@@ -434,6 +434,8 @@ mod oauth_ext;
 mod store_ext;
 #[path = "capi_client.rs"]
 mod client_ext;
+#[path = "capi_device.rs"]
+mod device_ext;
 
 fn cert_json(c: &x509::Certificate) -> Result<Vec<u8>, CErr> {
     let sans: Vec<Value> = c.sans.iter().map(|s| match s {

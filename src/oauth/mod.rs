@@ -8,6 +8,7 @@ pub mod at_jwt;
 pub mod bearer;
 pub mod client_auth;
 pub mod device;
+pub mod device_rules;
 pub mod dpop;
 pub mod exchange;
 pub mod error;

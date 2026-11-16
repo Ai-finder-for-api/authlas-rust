@@ -172,6 +172,28 @@ typedef struct {
   int (*remove)(void *user, const char *client_id);
 } AuthlasClientStore;
 
+// Host storage for device grants. Every callback returns 0 on success. Byte and string fields are JSON strings.
+//
+// Locking: the host must hold a lock keyed by `device_hash` (or by `user_code` for user-code lookups) from the first
+// read until the final `save` returns, so two operations on one device never interleave. A per-key mutex is enough.
+// Attempt counters need their own lock keyed by `attempt_key`.
+//
+// `insert(user, record_json)`: store a new record.
+// `find_by_user_code(user, user_code, out)`: write the record JSON, or an empty buffer when none exists.
+// `find_by_device_hash(user, device_hash, out)`: write the record JSON, or an empty buffer when none exists.
+// `save(user, record_json)`: overwrite the record with the one the library computed.
+// `find_attempts(user, attempt_key, out)`: write the failure count as a decimal string, or an empty buffer for zero.
+// `save_attempts(user, attempt_key, count)`: store the failure count for an attempt key.
+typedef struct {
+  void *user;
+  int (*insert)(void *user, const char *record_json);
+  int (*find_by_user_code)(void *user, const char *user_code, AuthlasBuf *out);
+  int (*find_by_device_hash)(void *user, const char *device_hash, AuthlasBuf *out);
+  int (*save)(void *user, const char *record_json);
+  int (*find_attempts)(void *user, const char *attempt_key, AuthlasBuf *out);
+  int (*save_attempts)(void *user, const char *attempt_key, uint32_t count);
+} AuthlasDeviceStore;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -492,6 +514,45 @@ int authlas_client_delete(AuthlasClientStore store,
                           const char *client_id,
                           const char *bearer,
                           AuthlasBuf *out);
+
+// Starts a device authorization (RFC 8628 3.1). `verification_uri` is the host's page. `scope` may be NULL.
+// Output: `{"device_code", "user_code", "verification_uri", "verification_uri_complete", "expires_in", "interval"}`.
+// The raw device code is returned once and only its hash is stored.
+int authlas_device_start(AuthlasDeviceStore store,
+                         const char *client_id,
+                         const char *scope,
+                         const char *verification_uri,
+                         uint64_t now,
+                         AuthlasBuf *out);
+
+// Verification page lookup. `attempt_key` identifies the caller (session or IP). Output: `{"client_id", "scope"}` when
+// the typed code is usable. A code that is unknown or unusable counts as a failed attempt against `attempt_key`.
+int authlas_device_lookup(AuthlasDeviceStore store,
+                          const char *attempt_key,
+                          const char *typed_user_code,
+                          uint32_t max_attempts,
+                          uint64_t now,
+                          AuthlasBuf *out);
+
+// Approves (`subject` non-NULL) or denies (`subject` NULL) a pending code from the verification page. A wrong code
+// counts against `attempt_key`, and a code that matches a record also counts against that record. Output:
+// `"approved"` or `"denied"`.
+int authlas_device_decide(AuthlasDeviceStore store,
+                          const char *attempt_key,
+                          const char *typed_user_code,
+                          const char *subject,
+                          uint32_t max_attempts,
+                          uint64_t now,
+                          AuthlasBuf *out);
+
+// Device poll at the token endpoint (RFC 8628 3.4 and 3.5). On success the output is
+// `{"grant_id", "client_id", "scope", "subject"}`; the caller issues tokens for that grant. The grant is consumed
+// and cannot be polled again. Errors carry the RFC 8628 error code in the message.
+int authlas_device_poll(AuthlasDeviceStore store,
+                        const char *client_id,
+                        const char *device_code,
+                        uint64_t now,
+                        AuthlasBuf *out);
 
 #ifdef __cplusplus
 }  // extern "C"
