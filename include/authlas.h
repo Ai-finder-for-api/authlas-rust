@@ -661,6 +661,39 @@ int authlas_exchange_response(const char *access_token,
                               const char *scope,
                               AuthlasBuf *out);
 
+// Authenticates a client by its mutual-TLS certificate (RFC 8705 2). `der` is the certificate the TLS layer received.
+// `chain_verified` must be 1 only when the TLS stack validated the chain against trusted CAs; the PKI method refuses
+// without it. `form_body` is the token request body (its `client_id` is used). `authorization` may be NULL. Output:
+// the authenticated client_id.
+int authlas_mtls_authenticate(const uint8_t *der,
+                              size_t der_len,
+                              int chain_verified,
+                              const char *authorization,
+                              const char *form_body,
+                              const char *registration_json,
+                              uint64_t now,
+                              AuthlasBuf *out);
+
+// The `cnf` claim that binds an access token to this certificate (RFC 8705 3.1). Output: `{"x5t#S256": "..."}`.
+int authlas_mtls_cnf(const uint8_t *der,
+                     size_t der_len,
+                     AuthlasBuf *out);
+
+// Resource server check (RFC 8705 3): the access token's `cnf.x5t#S256` must match the certificate on this connection.
+// `token_claims_json` is the verified JWT claims object. Output: `"bound"`. A token with no binding, or a binding to
+// another certificate, is an error.
+int authlas_mtls_check_binding(const uint8_t *der,
+                               size_t der_len,
+                               const char *token_claims_json,
+                               AuthlasBuf *out);
+
+// Authorization server check (RFC 8705 7.1): a refresh token or code bound to a certificate may only be used with that
+// same certificate. `bound_x5t_s256` is the stored thumbprint. Output: `"same"`, or an error.
+int authlas_mtls_same_certificate(const uint8_t *der,
+                                  size_t der_len,
+                                  const char *bound_x5t_s256,
+                                  AuthlasBuf *out);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
