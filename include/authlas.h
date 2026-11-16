@@ -194,6 +194,13 @@ typedef struct {
   int (*save_attempts)(void *user, const char *attempt_key, uint32_t count);
 } AuthlasDeviceStore;
 
+// Replay cache the host provides. `first_use(user, key, exp, now)` returns 1 when `key` is new (and records it until
+// `exp`), 0 when it was already seen, and a negative value on failure. Share one store across instances.
+typedef struct {
+  void *user;
+  int (*first_use)(void *user, const char *key, uint64_t exp, uint64_t now);
+} AuthlasReplayCache;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -553,6 +560,51 @@ int authlas_device_poll(AuthlasDeviceStore store,
                         const char *device_code,
                         uint64_t now,
                         AuthlasBuf *out);
+
+// Authenticates a client against its registration (RFC 6749 2.3, RFC 7523 3). `presented_json` and `registered_json`
+// are the JSON forms of the two structs. `replay` may be a NULL callback set; in that case assertion replay is not
+// checked, so production callers must supply one. `issuer` may be NULL. Output: the authenticated client_id.
+int authlas_client_authenticate(const char *presented_json,
+                                const char *registered_json,
+                                const char *token_endpoint,
+                                const char *issuer,
+                                AuthlasReplayCache replay,
+                                uint64_t now,
+                                AuthlasBuf *out);
+
+// Builds a DPoP proof (RFC 9449 4.2). `key_json` is the private JWK. `access_token` and `nonce` may be NULL (no access
+// token on a token request; no server nonce when the server did not ask for one). Output: the compact proof JWT.
+int authlas_dpop_build(const char *key_json,
+                       const char *method,
+                       const char *url,
+                       const char *access_token,
+                       const char *nonce,
+                       const char *alg,
+                       AuthlasBuf *out);
+
+// Hashes an access token for the `ath` claim (RFC 9449 4.2). Output: base64url SHA-256.
+int authlas_dpop_ath(const char *access_token, AuthlasBuf *out);
+
+// Normalises an HTTP URL for the `htu` claim (RFC 9449 4.3). Output: the normalised URL. Fails for URLs with query
+// or fragment components the spec says must not be compared.
+int authlas_dpop_normalize_htu(const char *url,
+                               AuthlasBuf *out);
+
+// Issues a DPoP server nonce (RFC 9449 8). `secret` is a host secret, kept by the host and reused across instances.
+// `lifetime` is in seconds. Output: the nonce.
+int authlas_dpop_nonce_issue(const uint8_t *secret,
+                             size_t secret_len,
+                             uint64_t lifetime,
+                             uint64_t now,
+                             AuthlasBuf *out);
+
+// Checks a DPoP nonce against the host secret and lifetime. Output: `"valid"` or an error.
+int authlas_dpop_nonce_check(const uint8_t *secret,
+                             size_t secret_len,
+                             uint64_t lifetime,
+                             const char *nonce,
+                             uint64_t now,
+                             AuthlasBuf *out);
 
 #ifdef __cplusplus
 }  // extern "C"
