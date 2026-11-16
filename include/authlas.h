@@ -606,6 +606,61 @@ int authlas_dpop_nonce_check(const uint8_t *secret,
                              uint64_t now,
                              AuthlasBuf *out);
 
+// Parses a token introspection request (RFC 7662 2.1) from a form body. Output: `{"token", "token_type_hint"}`.
+int authlas_introspection_parse_request(const char *form_body,
+                                        AuthlasBuf *out);
+
+// Parses an introspection response (RFC 7662 2.2). Output: the normalised response JSON. An inactive token comes back
+// as `{"active": false}`.
+int authlas_introspection_parse_response(const char *body,
+                                         AuthlasBuf *out);
+
+// Checks a parsed introspection response for use at a resource server: active, unexpired, not before its start time
+// (with `leeway` seconds), and issued for `resource`. Output: `"usable"`. Any other result is an error.
+int authlas_introspection_check(const char *body,
+                                const char *resource,
+                                uint64_t now,
+                                uint64_t leeway,
+                                AuthlasBuf *out);
+
+// Signs an introspection response as a JWT (RFC 9701). `alg` is the signing algorithm, `key_json` the private JWK.
+// Output: the compact JWT.
+int authlas_introspection_sign_jwt(const char *alg,
+                                   const char *key_json,
+                                   const char *issuer,
+                                   const char *audience,
+                                   const char *response_json,
+                                   AuthlasBuf *out);
+
+// Verifies a signed introspection response (RFC 9701) and returns the embedded result. `algs_json` is a JSON array of
+// allowed algorithm names; an empty array is refused. Output: the normalised introspection JSON.
+int authlas_introspection_verify_jwt(const char *token,
+                                     const char *key_json,
+                                     const char *algs_json,
+                                     const char *expected_issuer,
+                                     const char *me,
+                                     uint64_t now,
+                                     AuthlasBuf *out);
+
+// Decides a token exchange (RFC 8693). The caller has already verified the subject token (and the actor token, when
+// present) and passes their claims. `rules_json` is an array of exchange rules. `req_json` describes the request:
+// `{"subject_token_type", "actor_token_type", "requested_token_type", "audiences": [], "resources": [], "scope"}`.
+// Output: `{"targets", "token_type", "act", "subject", "scope"}`. The caller issues the token.
+int authlas_exchange_decide(const char *rules_json,
+                            const char *client_id,
+                            const char *subject_claims_json,
+                            const char *subject_scope,
+                            const char *actor_claims_json,
+                            const char *req_json,
+                            AuthlasBuf *out);
+
+// Builds the exchange response body (RFC 8693 2.2.1). `expires_in` of 0 means omit it. `scope` may be NULL.
+int authlas_exchange_response(const char *access_token,
+                              const char *issued_token_type,
+                              uint64_t expires_in,
+                              const char *scope,
+                              AuthlasBuf *out);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
