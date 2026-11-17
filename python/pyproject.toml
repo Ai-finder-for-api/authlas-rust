@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "authlas-core"
+version = "0.1.0"
+description = "ctypes binding to the authlas Rust C ABI: JOSE, OAuth flows and host-backed stores"
+requires-python = ">=3.9"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+include = ["authlas_core*"]
