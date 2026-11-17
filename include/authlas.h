@@ -694,6 +694,41 @@ int authlas_mtls_same_certificate(const uint8_t *der,
                                   const char *bound_x5t_s256,
                                   AuthlasBuf *out);
 
+// Verifies a signed request object (RFC 9101 6.3). Inputs:
+// - `object`: the compact JWT the client sent as `request`.
+// - `key_json`: the client's public JWK, selected by the host from its registration.
+// - `algs_json`: a JSON array of allowed algorithms. Empty is refused.
+// - `client_id`: the authenticated client; must match `client_id` in the object if present.
+// - `issuer`: this authorization server's issuer (the required `aud`).
+// - `max_lifetime`: the longest allowed `exp - iat` in seconds; 0 uses 600.
+// - `require_typ`: 1 to require `typ = oauth-authz-req+jwt` (RFC 9101 10.8).
+//
+// Output: the request parameters as a query string. Feed it to the authorization request validator in place of the
+// query string the browser sent.
+int authlas_request_object_verify(const char *object,
+                                  const char *key_json,
+                                  const char *algs_json,
+                                  const char *client_id,
+                                  const char *issuer,
+                                  uint64_t max_lifetime,
+                                  int require_typ,
+                                  uint64_t now,
+                                  AuthlasBuf *out);
+
+// Builds and signs a request object (RFC 9101, client side). `params_json` is a JSON object of request parameters.
+// Lifetime is capped at 600 seconds by the library. Output: the compact JWT.
+int authlas_request_object_build(const char *alg,
+                                 const char *key_json,
+                                 const char *client_id,
+                                 const char *issuer,
+                                 const char *params_json,
+                                 uint64_t lifetime,
+                                 AuthlasBuf *out);
+
+// Fingerprint of a `request_uri` for logs, so the reference itself is not written to logs. Output: 12 characters.
+int authlas_request_uri_fingerprint(const char *request_uri,
+                                    AuthlasBuf *out);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus

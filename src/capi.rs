@@ -442,6 +442,8 @@ mod auth_ext;
 mod intro_ext;
 #[path = "capi_mtls.rs"]
 mod mtls_ext;
+#[path = "capi_jar.rs"]
+mod jar_ext;
 
 fn cert_json(c: &x509::Certificate) -> Result<Vec<u8>, CErr> {
     let sans: Vec<Value> = c.sans.iter().map(|s| match s {
